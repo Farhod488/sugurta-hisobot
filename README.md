@@ -29,7 +29,7 @@ Desktop-приложение для формирования трёх отчёт
 ```powershell
 cd D:\Projects\sugurta-hisobot
 python -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\pip install -r requirements-desktop.txt
 .\run.bat
 ```
 
@@ -41,9 +41,14 @@ python -m venv .venv
 
 ### Streamlit (Excel-сводка)
 
+Локально:
+
 ```powershell
-.\.venv\Scripts\streamlit.exe run streamlit_app.py
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\streamlit.exe run app.py
 ```
+
+На Streamlit Cloud главный файл: `app.py` (зависимости из `requirements.txt`).
 
 ## Логика (Арипов)
 
