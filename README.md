@@ -1,7 +1,7 @@
 # Sug'urta hisobot — Тушум
 
-Desktop-приложение для формирования трёх отчётов **Тушум** (DOCX) по данным KUZATUV и OSAGO.
-Также есть Streamlit-модуль для сводного Excel-отчёта.
+Streamlit-приложение (Cloud + локально) и desktop GUI для отчётов **Тушум** (DOCX)
+по данным KUZATUV/OSAGO, плюс Excel-сводка 75%/25%.
 
 ## Входные файлы (Тушум)
 
@@ -39,7 +39,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe main.py
 ```
 
-### Streamlit (Excel-сводка)
+### Streamlit (Тушум + Excel-сводка)
 
 Локально:
 
@@ -48,7 +48,8 @@ python -m venv .venv
 .\.venv\Scripts\streamlit.exe run app.py
 ```
 
-На Streamlit Cloud главный файл: `app.py` (зависимости из `requirements.txt`).
+На Streamlit Cloud главный файл: `app.py`.  
+Вкладки: **Тушум (DOCX)** и **Excel-сводка**.
 
 ## Логика (Арипов)
 
