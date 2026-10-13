@@ -134,6 +134,10 @@ tab1, tab2 = st.tabs(["📊 Kuzatuv va OSAGO (Excel hisobotlar)", "📄 Tushum h
 # 1-BO'LIM: SIZNING BO'LIMINGIZ (DIZAYN YANGILANDI)
 # =========================================================================
 with tab1:
+    # Logoni markazga joylash
+    col_l, col_m, col_r = st.columns([1, 1, 1])
+    with col_m:
+        st.image("Logo mbl.png", use_container_width=True)
     st.markdown("""
     <div class="portal-banner">
         <h2>🛡️ Sug'urta hisobotlarini shakllantirish</h2>
