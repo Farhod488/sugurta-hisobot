@@ -1,0 +1,10 @@
+metric,period,value,target
+Revenue,Q1,1200000,1000000
+Revenue,Q2,1350000,1100000
+Revenue,Q3,1280000,1200000
+NPS,Q1,42,40
+NPS,Q2,45,42
+NPS,Q3,47,45
+Churn,Q1,3.2,3.0
+Churn,Q2,2.8,3.0
+Churn,Q3,2.5,2.8

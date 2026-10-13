@@ -1,0 +1,23 @@
+P2 [Normal]: Markaziy bojxona laboratoriyasi boshligʻi, polkovnik
+P3 [Normal]:                               R. Ruziyevga
+P7 [Normal]: Markaziy bojxona laboratoriyasi Jismoniy va yuridik shaxslarga 
+xizmat koʻrsatish boʻlimi boshligʻi B.Xamrakulov  tomonidan 2026-yilning 
+24-31-avgust kunlari davomida  Rivojlantirish jamgʻarmasiga qoʻshimcha tushumlarni jalb etish yoʻnalishida amalga oshirilgan ishlar yuzasidan 
+P8 [Normal]: MAʼLUMOT
+P10 [Normal]: Oʻzbekiston Respublikasi Vazirlar Mahkamasining 2020-yil 
+22-dekabrdagi 800-son hamda 2021-yil 30-dekabrdagi 790-son qarorlariga muvofiq Markaziy bojxona laboratoriyasining chet el tovarlarini tashiyotgan avtotransport vositalarini bojxona hamrohligida kuzatib borishdan ozod qilish uchun bojxona toʻlovlarini toʻlash majburiyatini sugʻurtalash yoʻnalishida koʻrsatilgan xizmat uchun shartnoma asosida MBLni rivojlantirish jamgʻarmasiga oʻtkazilmoqda.
+P11 [Normal]: Xususan, ushbu xizmat turi boʻyicha 8 ta sugʻurta kompaniyalari bilan shartnoma imzolanib, ular tomonidan 583 mlrd soʻm miqdoridagi mablagʻlar toʻlov qobiliyatini mustahkamlash maqsadida tijorat banklari depozit hisob raqamiga joylashtirilgan.
+P12 [Normal]: Sugʻurta polislari sugʻurta tashkilotlari tomonidan depozitga qoʻygan mablagʻ ulushiga nisbatan, “Sugʻurta” modulining algoritmi asosida inson omilisiz, avtomatik taqsimlanib rasmiylashtirilmoqda.
+P13 [Normal]: Amaliyot yoʻlga qoʻyilganidan bugungi kungacha 1 mln 345 ming 623 ta sugʻurta polislari asosida 301,2 mlrd soʻm sugʻurta mukofoti undirilgan. Shundan 89,1 mlrd soʻm MBL rivojlantirish jamgʻarmasiga, 212,1 mlrd soʻm sugʻurta tashkilotlari hisob raqamlariga oʻtkazilgan.
+P14 [Normal]: Shuningdek, joriy yilning 24-31-avgust kunlari mazkur xizmat turi boʻyicha 
+14 087 ta polis asosida 4,2 mlrd soʻm sugʻurta mukofoti undirilgan. Shundan 
+1 040,5 mln soʻm MBL, 3,1 mlrd soʻm sugʻurta tashkilotlari hisob raqamlariga oʻtkazilgan.
+P15 [Normal]: Shuningdek, Oʻzbekiston Respublikasining Prezidentining 2025-yil 
+25-martdagi “Davlat bojxona xizmati organlarining faoliyati samaradorligini oshirish boʻyicha chora-tadbirlar toʻgʻrisida” PF-57-son Farmoni hamda “Davlat bojxona xizmati organlarining faoliyatini tashkil etish va bojxona maʼmuriyatchiligini yanada takomillashtirishning qoʻshimcha chora-tadbirlari toʻgʻrisida” PQ-122-son qarori hamda BQning 2025-yil 28-maydagi 109-son buyrugʻi asosida joriy yilning 1-iyul kunidan Oʻzbekistonga kirib kelayotgan chet davlatlarda roʻyxatdan oʻtgan avtotransport vositalari egalari fuqarolik javobgarligini majburiy sugʻurtalash boʻyicha pullik xizmat turi amaliyotga joriy qilindi.
+P16 [Normal]: Ushbu xizmat turi boʻyicha 3 ta sugʻurta kompaniyalari bilan shartnoma imzolanib, ular tomonidan 150 mlrd soʻm miqdoridagi mablagʻlar toʻlov qobiliyatini mustahkamlash maqsadida tijorat banklari depozit hisob raqamiga joylashtirilishi taʼminlandi.
+P17 [Normal]: Mazkur amaliyot yoʻlga qoʻyilishi natijasida, jami 480 536 ta sugʻurta polislari rasmiylashtirilib, 50 mlrd soʻm sugʻurta mukofoti undirildi. Shundan 14,1 mlrd soʻm MBL, 35,9 mlrd soʻm sugʻurta tashkiloti hisobiga oʻtkazildi.
+P18 [Normal]: Shuningdek, jori yilning 24-31-avgust kunlari mazkur xizmat turi boʻyicha 
+8 589 ta polislar asosida 1 409 mln soʻm sugʻurta mukofoti undirilgan. Shundan 281,9 mln soʻm MBL, 1,1 mlrd soʻm sugʻurta tashkilotlari hisob raqamlariga oʻtkazilgan.
+P19 [Normal]: 24-31-avgust kunlari davomida jami 1 322,4 mln soʻm pul mablagʻlari Markaziy bojxona laboratoriyasining rivojlantirish jamgʻarmasiga oʻtkazildi.
+P21 [Normal]: Jismoniy va yuridik shaxslarga  
+P22 [Normal]: xizmat koʻrsatish boʻlimi boshligʻi  				B.Xamrakulov  

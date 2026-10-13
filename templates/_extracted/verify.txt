@@ -1,0 +1,16 @@
+﻿KUZATUV jami ['Jami:', None, '648,5', '100%', '1345623', '301166,4', '212089,3', '89077,1', '1400', '426,3', '319,7', '106,6', '100%']
+OSAGO jami ['', 'Jami:', '170', '100%', '2 750 923', '480536', '167014', '313522', '464208', '10235', '6093', '797', '50012,7', '35937,9', '14074,8', '137,3', '109,8', '27,5', '']
+python.exe : Traceback (most recent call last):
+C:\Users\atb.mehmon_2\AppData\Local\Temp\ps-script-fa35e6d1-f156-4919-b74c-194cf0dfe672.ps1:107 знак:51
++ ... -generator; & .\.venv\Scripts\python.exe scripts\verify_numbers.py 2> ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\atb.mehmon_2\kpi-generator\scripts\verify_numbers.py", line 34, in <module>
+    print("KUZATUV cols", list(kuz.columns))
+  File "C:\Users\atb.mehmon_2\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u0493' in position 4: character maps to <undefined>
+KUZATUV cols 
