@@ -117,8 +117,6 @@ if "report_title" not in st.session_state:
     st.session_state.report_title = ""
 if "filled_template_bytes" not in st.session_state:
     st.session_state.filled_template_bytes = None
-if "filled_preview_df" not in st.session_state:
-    st.session_state.filled_preview_df = None
 
 # 3 ta bo'lim
 tab1, tab2, tab3 = st.tabs([
@@ -183,13 +181,13 @@ with tab1:
 
                     # 1. KUZATUV
                     if sugurta_turi == "Kuzatuv (Kafolat)":
-                        sum_col = "res_ins_prem" if "res_ins_prem" in df.columns else "ins_prem"
+                        sum_col = next((c for c in ["res_ins_prem", "ins_prem", "100%", "summa"] if c in df.columns), df.columns[2])
                         df[sum_col] = pd.to_numeric(
                             df[sum_col].astype(str).str.replace(" ", "").str.replace(",", "."),
                             errors="coerce"
                         ).fillna(0)
 
-                        firma_col = "sugurta_firma" if "sugurta_firma" in df.columns else df.columns[0]
+                        firma_col = next((c for c in ["sugurta_firma", "sug'urta firma", "firma"] if c in df.columns), df.columns[0])
                         df["sug'urta firma"] = df[firma_col].fillna("Noma'lum").astype(str).str.strip()
 
                         seria = df["seria_polis"].fillna("").astype(str).str.strip() if "seria_polis" in df.columns else ""
@@ -222,13 +220,13 @@ with tab1:
 
                     # 2. OSAGO
                     else:
-                        sum_col = "premium" if "premium" in df.columns else "mukofot_sum"
+                        sum_col = next((c for c in ["premium", "mukofot_sum", "100%", "res_ins_prem"] if c in df.columns), df.columns[2])
                         df[sum_col] = pd.to_numeric(
                             df[sum_col].astype(str).str.replace(" ", "").str.replace(",", "."),
                             errors="coerce"
                         ).fillna(0)
 
-                        firma_col = "insurance_company" if "insurance_company" in df.columns else df.columns[0]
+                        firma_col = next((c for c in ["insurance_company", "sug'urta firma", "sugurta_firma", "firma"] if c in df.columns), df.columns[0])
                         df["sug'urta firma"] = df[firma_col].fillna("Noma'lum").astype(str).str.strip()
 
                         df["deklaratsiya"] = df["deklaratsiya"].fillna("").astype(str).str.strip() if "deklaratsiya" in df.columns else ""
@@ -322,7 +320,7 @@ with tab1:
             st.error(f"Xatolik yuz berdi: {e}")
 
 # =========================================================================
-# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT (YANGI BO'LIM)
+# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT (UNIVERSAL QIDIRUV BILAN)
 # =========================================================================
 with tab2:
     st.markdown("""
@@ -332,7 +330,6 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
 
-    # 1. Sug'urta turini tanlash tugmasi
     st.markdown("##### 📌 1-qadam: Sug'urta turini tanlang")
     report_type_selection = st.radio(
         "Sug'urta yo'nalishi:",
@@ -347,17 +344,15 @@ with tab2:
     f_col1, f_col2 = st.columns(2)
     with f_col1:
         daily_file = st.file_uploader(
-            "1. Birlamchi kunlik Excel fayl (Polislar):",
+            "1. Birlamchi kunlik Excel fayl (Polislar yoki 1-bo'lim hisoboti):",
             type=["xlsx", "xls"],
-            key="tab2_daily_file",
-            help="Kafolat yoki Majburiy polislar bazasi"
+            key="tab2_daily_file"
         )
     with f_col2:
         template_file = st.file_uploader(
             "2. Rangli shablon Excel fayl (Namunadagi jadval):",
             type=["xlsx", "xls"],
-            key="tab2_template_file",
-            help="Sizdagi rangli jadvalli shablon fayl"
+            key="tab2_template_file"
         )
 
     if daily_file and template_file:
@@ -366,17 +361,40 @@ with tab2:
                 try:
                     df_in = pd.read_excel(daily_file)
 
-                    # Birlamchi fayldan firmalar bo'yicha hisoblash
-                    if is_kuzatuv:
-                        f_col = "sugurta_firma" if "sugurta_firma" in df_in.columns else df_in.columns[0]
-                        s_col = "res_ins_prem" if "res_ins_prem" in df_in.columns else "ins_prem"
-                        pct_org = 0.75
-                        pct_mbl = 0.25
-                    else:
-                        f_col = "insurance_company" if "insurance_company" in df_in.columns else df_in.columns[0]
-                        s_col = "premium" if "premium" in df_in.columns else "mukofot_sum"
-                        pct_org = 0.80
-                        pct_mbl = 0.20
+                    # Умный поиск колонки фирмы
+                    cols_lower = {str(c).lower().strip(): c for c in df_in.columns}
+                    f_col = None
+                    for cand in ["sug'urta firma", "sugurta_firma", "insurance_company", "firma"]:
+                        if cand in cols_lower:
+                            f_col = cols_lower[cand]
+                            break
+                    if not f_col:
+                        for c in df_in.columns:
+                            if any(k in str(c).lower() for k in ["firma", "company", "наименование", "страховщик"]):
+                                f_col = c
+                                break
+                    if not f_col:
+                        f_col = df_in.columns[0]
+
+                    # Умный поиск колонки суммы
+                    s_col = None
+                    for cand in ["100%", "res_ins_prem", "ins_prem", "premium", "mukofot_sum"]:
+                        if cand in cols_lower:
+                            s_col = cols_lower[cand]
+                            break
+                    if not s_col:
+                        for c in df_in.columns:
+                            if any(k in str(c).lower() for k in ["prem", "sum", "100", "мукофот"]):
+                                s_col = c
+                                break
+                    if not s_col:
+                        s_col = df_in.columns[2] if len(df_in.columns) > 2 else df_in.columns[-1]
+
+                    pct_org = 0.75 if is_kuzatuv else 0.80
+                    pct_mbl = 0.25 if is_kuzatuv else 0.20
+
+                    # Исключаем строку итогов JAMI / ОБЩИЙ ИТОГ, если загружен готовый отчет
+                    df_in = df_in[~df_in[f_col].astype(str).str.upper().str.contains("JAMI|ИТОГ|TOTAL")].copy()
 
                     df_in[s_col] = pd.to_numeric(
                         df_in[s_col].astype(str).str.replace(" ", "").str.replace(",", "."),
@@ -398,11 +416,10 @@ with tab2:
                         sum_val=(s_col, "sum")
                     ).to_dict(orient="index")
 
-                    # Rangli shablonni openpyxl orqali yuklash (ranglar, chiziqlar saqlanadi)
+                    # Rangli shablonni ochish
                     wb = openpyxl.load_workbook(template_file)
                     ws = wb.active
 
-                    # Ustunlar va qatorlarni aniqlash
                     row_jami = None
                     firm_rows = []
                     col_kunlik_cnt = None
@@ -419,7 +436,6 @@ with tab2:
                         for c in range(1, 20):
                             val = str(ws.cell(r, c).value or "")
                             if "kunlik" in val.lower():
-                                # Kunlik ustunlarini topish
                                 for sub_c in range(c, c + 7):
                                     hdr = str(ws.cell(r + 1, sub_c).value or "") + " " + str(ws.cell(r + 2, sub_c).value or "")
                                     hdr_l = hdr.lower()
@@ -445,13 +461,11 @@ with tab2:
                                     elif "mbl" in hdr_l and col_tadbir_mbl is None:
                                         col_tadbir_mbl = sub_c
 
-                    # Default ustun pozitsiyalari (agar skan topolmasa)
                     if not col_kunlik_cnt:
                         col_kunlik_cnt, col_kunlik_prem, col_kunlik_org, col_kunlik_mbl = 9, 10, 11, 12
                     if not col_tadbir_cnt:
                         col_tadbir_cnt, col_tadbir_prem, col_tadbir_org, col_tadbir_mbl = 5, 6, 7, 8
 
-                    # Jami va firmalar qatorlarini aniqlash
                     for r in range(4, 25):
                         c1_val = str(ws.cell(r, 1).value or "")
                         c2_val = str(ws.cell(r, 2).value or "")
@@ -480,11 +494,10 @@ with tab2:
 
                     # 1. Kunlik va Tadbir boshidan ustunlarini yangilash
                     for r, orig_name, c_name in firm_rows:
-                        # Birlamchi fayldan mos firmani qidirish
                         matched_key = next((k for k in grouped if k in c_name or c_name in k), None)
                         if matched_key:
                             d_cnt = grouped[matched_key]["cnt"]
-                            d_prem = grouped[matched_key]["sum_val"] / 1_000_000.0  # mln so'mga o'tkazish
+                            d_prem = grouped[matched_key]["sum_val"] / 1_000_000.0
                         else:
                             d_cnt = 0
                             d_prem = 0.0
@@ -497,13 +510,11 @@ with tab2:
                         total_k_org += d_org
                         total_k_mbl += d_mbl
 
-                        # Kunlik ustuniga yozish
                         ws.cell(r, col_kunlik_cnt, value=d_cnt if d_cnt > 0 else "-")
                         ws.cell(r, col_kunlik_prem, value=round(d_prem, 1) if d_prem > 0 else "-")
                         ws.cell(r, col_kunlik_org, value=round(d_org, 1) if d_org > 0 else "-")
                         ws.cell(r, col_kunlik_mbl, value=round(d_mbl, 1) if d_mbl > 0 else "-")
 
-                        # Tadbir boshidan ustuniga qo'shish (kümülyativ)
                         cur_t_cnt = to_float(ws.cell(r, col_tadbir_cnt).value)
                         cur_t_prem = to_float(ws.cell(r, col_tadbir_prem).value)
                         cur_t_org = to_float(ws.cell(r, col_tadbir_org).value)
@@ -532,19 +543,16 @@ with tab2:
                         ws.cell(row_jami, col_tadbir_mbl, value=round(cur_j_mbl + total_k_mbl, 1))
 
                     # 2. O'ng tarafdagi 4 ustunlik blokni yangilash
-                    # Jadvaldan o'ngda joylashgan kataklar qidiriladi
                     for r_sub in range(len(firm_rows) + 5, 30):
                         for c_sub in range(13, 22):
                             val_sub = ws.cell(r_sub, c_sub).value
                             if val_sub is not None and isinstance(val_sub, (int, float)) and val_sub > 0:
-                                # Shu yerdagi 4 ta katak yangilanadi
                                 ws.cell(r_sub, c_sub, value=int(total_k_cnt))
                                 ws.cell(r_sub, c_sub + 1, value=round(total_k_prem, 1))
                                 ws.cell(r_sub, c_sub + 2, value=round(total_k_org, 1))
                                 ws.cell(r_sub, c_sub + 3, value=round(total_k_mbl, 1))
                                 break
 
-                    # Natijani saqlash
                     out_stream = io.BytesIO()
                     wb.save(out_stream)
                     st.session_state.filled_template_bytes = out_stream.getvalue()
@@ -554,7 +562,6 @@ with tab2:
                 except Exception as ex:
                     st.error(f"Xatolik yuz berdi: {ex}")
 
-        # Yuklab olish tugmasi
         if st.session_state.filled_template_bytes is not None:
             st.markdown("---")
             st.download_button(
