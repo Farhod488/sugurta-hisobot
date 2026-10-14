@@ -110,7 +110,7 @@ st.markdown("""
 def load_excel_data(file_bytes):
     return pd.read_excel(io.BytesIO(file_bytes))
 
-# Xotira
+# Session state xotirasi
 if "result_df" not in st.session_state:
     st.session_state.result_df = None
 if "report_title" not in st.session_state:
@@ -118,7 +118,6 @@ if "report_title" not in st.session_state:
 if "filled_template_bytes" not in st.session_state:
     st.session_state.filled_template_bytes = None
 
-# 3 ta bo'limni e'lon qilish
 tab1, tab2, tab3 = st.tabs([
     "📊 Kuzatuv va OSAGO (Excel hisobotlar)", 
     "📑 Rangli Yig'ma Hisobot", 
@@ -320,7 +319,7 @@ with tab1:
             st.error(f"Xatolik yuz berdi: {e}")
 
 # =========================================================================
-# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT
+# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT (ANIQ HISOB-KITOB)
 # =========================================================================
 with tab2:
     st.markdown("""
@@ -357,7 +356,7 @@ with tab2:
 
     if daily_file and template_file:
         if st.button("⚡ Hisobotni yangilash va rangli Excel yaratish", type="primary", use_container_width=True):
-            with st.spinner("Hisobot to'g'ri ustunlar bo'yicha to'ldirilmoqda..."):
+            with st.spinner("Hisobot to'liq tekshirilib, to'g'ri formulalar bilan to'ldirilmoqda..."):
                 try:
                     df_in = pd.read_excel(daily_file)
 
@@ -389,21 +388,22 @@ with tab2:
                         errors="coerce"
                     ).fillna(0)
 
-                    def clean_firm(val):
-                        v = str(val).upper()
-                        v = re.sub(r'["“”`\'\s]', '', v)
-                        for token in ['AJ', 'SK', 'EISK', 'QK', 'KOMPANIYASI', 'SUGURTA', 'SUG`URTA', 'INSURANCE']:
-                            v = v.replace(token, '')
-                        return v
+                    # Universallashtirilgan firma tozalash (apostrof va barcha turlarni inobatga olgan holda)
+                    def normalize_company(name):
+                        if not name:
+                            return ""
+                        s = str(name).upper()
+                        s = re.sub(r"[`'ʻʼ’‘\"“”«»\-_]", "", s)
+                        for w in ["KOMPANIYASI", "INSURANCE", "SUGURTA", "SUGURTASI", "GROUP", "EISK", "SK", "AJ", "QK", "ST"]:
+                            s = s.replace(w, "")
+                        return re.sub(r"\s+", "", s)
 
-                    df_in["clean_firm"] = df_in[f_col].apply(clean_firm)
+                    df_in["clean_firm"] = df_in[f_col].apply(normalize_company)
 
                     grouped = df_in.groupby("clean_firm").agg(
                         cnt=(s_col, "count"),
                         sum_val=(s_col, "sum")
                     ).to_dict(orient="index")
-
-                    total_daily_sum_mln = sum(data["sum_val"] for data in grouped.values()) / 1_000_000.0
 
                     # Shablonni yuklash
                     wb = openpyxl.load_workbook(template_file)
@@ -420,56 +420,56 @@ with tab2:
                         except:
                             return 0.0
 
-                    COL_T_CNT = 6
-                    COL_T_PREM = 7
-                    COL_T_ORG = 8
-                    COL_T_MBL = 9
+                    # Ustunlarning aniq koordinatalari:
+                    COL_T_CNT = 6    # F: Tadbir polislar
+                    COL_T_PREM = 7   # G: Tadbir mukofot (mln)
+                    COL_T_ORG = 8    # H: Tadbir 75% (mln)
+                    COL_T_MBL = 9    # I: Tadbir 25% (mln)
 
-                    COL_K_CNT = 10
-                    COL_K_PREM = 11
-                    COL_K_ORG = 12
-                    COL_K_MBL = 13
-                    COL_K_PCT = 14
+                    COL_K_CNT = 10   # J: Kunlik polislar
+                    COL_K_PREM = 11  # K: Kunlik mukofot (mln)
+                    COL_K_ORG = 12   # L: Kunlik 75% (mln)
+                    COL_K_MBL = 13   # M: Kunlik 25% (mln)
+                    COL_K_PCT = 14   # N: foiz ulushi
 
                     total_k_cnt = 0
                     total_k_prem = 0.0
                     total_k_org = 0.0
                     total_k_mbl = 0.0
 
+                    # 10-qatordan 22-qatorgacha bo'lgan firmalarni to'ldirish
                     for r in range(10, 23):
-                        firm_name_raw = ws.cell(r, 3).value
+                        firm_name_raw = ws.cell(r, 3).value  # C ustuni
                         if not firm_name_raw:
                             continue
 
-                        c_name = clean_firm(firm_name_raw)
-                        matched_key = next((k for k in grouped if k in c_name or c_name in k), None)
+                        norm_t = normalize_company(firm_name_raw)
+
+                        # Mos keluvchi firmani qidirish
+                        matched_key = None
+                        for k in grouped:
+                            if k == norm_t or k in norm_t or norm_t in k:
+                                matched_key = k
+                                break
 
                         if matched_key:
                             d_cnt = grouped[matched_key]["cnt"]
                             d_prem = grouped[matched_key]["sum_val"] / 1_000_000.0
-                        else:
-                            d_cnt = 0
-                            d_prem = 0.0
+                            d_org = d_prem * pct_org
+                            d_mbl = d_prem * pct_mbl
 
-                        d_org = d_prem * pct_org
-                        d_mbl = d_prem * pct_mbl
+                            total_k_cnt += d_cnt
+                            total_k_prem += d_prem
+                            total_k_org += d_org
+                            total_k_mbl += d_mbl
 
-                        total_k_cnt += d_cnt
-                        total_k_prem += d_prem
-                        total_k_org += d_org
-                        total_k_mbl += d_mbl
-
-                        ws.cell(r, COL_K_CNT, value=d_cnt if d_cnt > 0 else "-")
-                        ws.cell(r, COL_K_PREM, value=round(d_prem, 4) if d_prem > 0 else "-")
-                        ws.cell(r, COL_K_ORG, value=round(d_org, 4) if d_org > 0 else "-")
-                        ws.cell(r, COL_K_MBL, value=round(d_mbl, 4) if d_mbl > 0 else "-")
-
-                        if total_daily_sum_mln > 0 and d_prem > 0:
+                            ws.cell(r, COL_K_CNT, value=d_cnt)
+                            ws.cell(r, COL_K_PREM, value=round(d_prem, 4))
+                            ws.cell(r, COL_K_ORG, value=round(d_org, 4))
+                            ws.cell(r, COL_K_MBL, value=round(d_mbl, 4))
                             ws.cell(r, COL_K_PCT, value=f"=K{r}*100/K$9")
-                        else:
-                            ws.cell(r, COL_K_PCT, value="-" if d_prem == 0 else 0)
 
-                        if d_cnt > 0:
+                            # Tadbir boshidan ustunlariga qo'shish
                             cur_t_cnt = to_float(ws.cell(r, COL_T_CNT).value)
                             cur_t_prem = to_float(ws.cell(r, COL_T_PREM).value)
                             cur_t_org = to_float(ws.cell(r, COL_T_ORG).value)
@@ -479,20 +479,35 @@ with tab2:
                             ws.cell(r, COL_T_PREM, value=round(cur_t_prem + d_prem, 4))
                             ws.cell(r, COL_T_ORG, value=round(cur_t_org + d_org, 4))
                             ws.cell(r, COL_T_MBL, value=round(cur_t_mbl + d_mbl, 4))
+                        else:
+                            # 10 dan 18 gacha qatorlarda bo'lsa 0 qo'yiladi (formula buzilmasligi uchun)
+                            # 19 dan 22 gacha esa '-' qo'yiladi
+                            if r <= 18:
+                                ws.cell(r, COL_K_CNT, value=0)
+                                ws.cell(r, COL_K_PREM, value=0.0)
+                                ws.cell(r, COL_K_ORG, value=0.0)
+                                ws.cell(r, COL_K_MBL, value=0.0)
+                                ws.cell(r, COL_K_PCT, value=0.0)
+                            else:
+                                ws.cell(r, COL_K_CNT, value="-")
+                                ws.cell(r, COL_K_PREM, value="-")
+                                ws.cell(r, COL_K_ORG, value="-")
+                                ws.cell(r, COL_K_MBL, value="-")
+                                ws.cell(r, COL_K_PCT, value="-")
 
-                    # JAMI formulalari
+                    # Jami (9-qator) formulalarini tiklash
                     ws.cell(9, COL_T_CNT, value="=SUM(F10:F22)")
                     ws.cell(9, COL_T_PREM, value="=SUM(G10:G22)")
                     ws.cell(9, COL_T_ORG, value="=SUM(H10:H22)")
                     ws.cell(9, COL_T_MBL, value="=SUM(I10:I22)")
 
-                    ws.cell(9, COL_K_CNT, value="=+J10+J11+J12+J13+J14+J15+J16+J17+J18")
-                    ws.cell(9, COL_K_PREM, value="=+K10+K11+K12+K13+K14+K15+K16+K17+K18")
-                    ws.cell(9, COL_K_ORG, value="=+L10+L11+L12+L13+L14+L15+L16+L17+L18")
+                    ws.cell(9, COL_K_CNT, value="=+J10+J14+J11+J15+J17+J12+J18+J16+J13")
+                    ws.cell(9, COL_K_PREM, value="=+K10+K14+K11+K15+K17+K12+K18+K16+K13")
+                    ws.cell(9, COL_K_ORG, value="=+L10+L14+L11+L15+L17+L12+L18+L16+L13")
                     ws.cell(9, COL_K_MBL, value="=+M10+M11+M12+M13+M14+M15+M16+M17+M18")
                     ws.cell(9, COL_K_PCT, value=1)
 
-                    # 39-qator Oktabr oyi
+                    # 39-qator: Oktabr oyiga qo'shish
                     if ws.cell(39, 2).value and "Oktabr" in str(ws.cell(39, 2).value):
                         c_cnt_39 = to_float(ws.cell(39, 4).value)
                         c_prem_39 = to_float(ws.cell(39, 6).value)
@@ -508,7 +523,7 @@ with tab2:
                     wb.save(out_stream)
                     st.session_state.filled_template_bytes = out_stream.getvalue()
 
-                    st.success("✅ Shablon to'liq va aniq hisob-kitoblar bilan yangilandi!")
+                    st.success("✅ Shablon to'liq va xatosiz yangilandi!")
 
                 except Exception as ex:
                     st.error(f"Xatolik yuz berdi: {ex}")
