@@ -1,5 +1,326 @@
+import io
+import re
+import pandas as pd
+import openpyxl
+import streamlit as st
+
+# Sahifa sozlamalari
+st.set_page_config(
+    page_title="Sug'urta Hisoboti Portali",
+    page_icon="🛡️",
+    layout="wide"
+)
+
+# Custom CSS dizayn
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .portal-banner {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
+        border-radius: 16px;
+        padding: 24px 28px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.25);
+    }
+    .portal-banner h2 {
+        color: #ffffff !important;
+        font-weight: 700;
+        font-size: 24px;
+        margin: 0 0 6px 0;
+    }
+    .portal-banner p {
+        color: #cbd5e1;
+        font-size: 14px;
+        margin: 0;
+    }
+
+    .param-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 14px;
+    }
+
+    .metric-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        text-align: center;
+        border-top: 4px solid #2563eb;
+    }
+    .metric-card .title {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .metric-card .value {
+        color: #0f172a;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    div.stButton > button:first-child {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 24px !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+    }
+
+    .stDownloadButton button {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 26px !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3) !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        border-bottom: 2px solid #e2e8f0;
+        margin-bottom: 18px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 18px;
+        font-weight: 600;
+        border-radius: 8px 8px 0 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Kesh funksiyasi
+@st.cache_data(show_spinner=False)
+def load_excel_data(file_bytes):
+    return pd.read_excel(io.BytesIO(file_bytes))
+
+# Xotira
+if "result_df" not in st.session_state:
+    st.session_state.result_df = None
+if "report_title" not in st.session_state:
+    st.session_state.report_title = ""
+if "filled_template_bytes" not in st.session_state:
+    st.session_state.filled_template_bytes = None
+
+# 3 ta bo'limni e'lon qilish
+tab1, tab2, tab3 = st.tabs([
+    "📊 Kuzatuv va OSAGO (Excel hisobotlar)", 
+    "📑 Rangli Yig'ma Hisobot", 
+    "📄 Tushum hisoboti (DOCX / Solishtirish)"
+])
+
 # =========================================================================
-# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT (TO'G'RILANGAN VERSIYA)
+# 1-BO'LIM: KUZATUV VA OSAGO KUNLIK / OYLIK
+# =========================================================================
+with tab1:
+    col_l, col_m, col_r = st.columns([1, 1, 1])
+    with col_m:
+        try:
+            st.image("Logo mbl.png", use_container_width=True)
+        except Exception:
+            pass
+
+    st.markdown("""
+    <div class="portal-banner">
+        <h2>🛡️ Sug'urta hisobotlarini shakllantirish</h2>
+        <p>Birlamchi Excel fayllarni qayta ishlash, foizlarni taqsimlash hamda kunlik va oylik yakuniy jadvallarni eksport qilish moduli</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded_file = st.file_uploader(
+        "Birlamchi Excel faylni tanlang (.xlsx yoki .xls):",
+        type=["xlsx", "xls"],
+        key="main_excel_uploader"
+    )
+
+    if uploaded_file is not None:
+        try:
+            with st.spinner("Fayl o'qilmoqda..."):
+                df_raw = load_excel_data(uploaded_file.getvalue())
+
+            st.success(f"Fayl muvaffaqiyatli yuklandi! Jami qatorlar: **{len(df_raw):,}** ta")
+
+            col_type, col_period = st.columns(2)
+            with col_type:
+                st.markdown('<div class="param-box">', unsafe_allow_html=True)
+                sugurta_turi = st.radio(
+                    "📌 Sug'urta turi:",
+                    ["Kuzatuv (Kafolat)", "OSAGO (Majburiy)"],
+                    horizontal=True
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            with col_period:
+                st.markdown('<div class="param-box">', unsafe_allow_html=True)
+                davr = st.radio(
+                    "📅 Hisobot davri:",
+                    ["Kunlik", "Oylik"],
+                    horizontal=True
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            if st.button("🚀 Tayyor (Hisobotni shakllantirish)", type="primary", use_container_width=True):
+                with st.spinner("Hisobot tayyorlanmoqda..."):
+                    df = df_raw.copy()
+
+                    # 1. KUZATUV
+                    if sugurta_turi == "Kuzatuv (Kafolat)":
+                        sum_col = next((c for c in ["res_ins_prem", "ins_prem", "100%", "summa"] if c in df.columns), df.columns[2])
+                        df[sum_col] = pd.to_numeric(
+                            df[sum_col].astype(str).str.replace(" ", "").str.replace(",", "."),
+                            errors="coerce"
+                        ).fillna(0)
+
+                        firma_col = next((c for c in ["sugurta_firma", "sug'urta firma", "firma"] if c in df.columns), df.columns[0])
+                        df["sug'urta firma"] = df[firma_col].fillna("Noma'lum").astype(str).str.strip()
+
+                        seria = df["seria_polis"].fillna("").astype(str).str.strip() if "seria_polis" in df.columns else ""
+                        number = df["number_polis"].fillna("").astype(str).str.strip() if "number_polis" in df.columns else ""
+                        df["polis raqami"] = (seria + " " + number).str.strip()
+
+                        df["100%"] = df[sum_col]
+                        df["75%"] = df["100%"] * 0.75
+                        df["25%"] = df["100%"] * 0.25
+
+                        if davr == "Kunlik":
+                            cols_final = ["sug'urta firma", "polis raqami", "100%", "75%", "25%"]
+                            st.session_state.report_title = "Kuzatuv kunlik hisoboti"
+                        else:
+                            df["deklaratsiya"] = df["declaration"].fillna("").astype(str).str.strip() if "declaration" in df.columns else ""
+                            date_col = "ins_date" if "ins_date" in df.columns else ("request_vaqti" if "request_vaqti" in df.columns else "")
+                            df["polis olingan vaqti"] = df[date_col].fillna("").astype(str).str.strip() if date_col else ""
+                            df["polis muddati"] = df["ins_srok"].fillna("").astype(str).str.strip() if "ins_srok" in df.columns else ""
+                            
+                            lname = df["lastname"].fillna("").astype(str).str.strip() if "lastname" in df.columns else ""
+                            fname = df["firstname"].fillna("").astype(str).str.strip() if "firstname" in df.columns else ""
+                            df["familya ism"] = (lname + " " + fname).str.strip()
+
+                            cols_final = [
+                                "sug'urta firma", "deklaratsiya", "polis olingan vaqti", 
+                                "polis muddati", "polis raqami", "familya ism", 
+                                "100%", "75%", "25%"
+                            ]
+                            st.session_state.report_title = "Kuzatuv oylik hisoboti"
+
+                    # 2. OSAGO
+                    else:
+                        sum_col = next((c for c in ["premium", "mukofot_sum", "100%", "res_ins_prem"] if c in df.columns), df.columns[2])
+                        df[sum_col] = pd.to_numeric(
+                            df[sum_col].astype(str).str.replace(" ", "").str.replace(",", "."),
+                            errors="coerce"
+                        ).fillna(0)
+
+                        firma_col = next((c for c in ["insurance_company", "sug'urta firma", "sugurta_firma", "firma"] if c in df.columns), df.columns[0])
+                        df["sug'urta firma"] = df[firma_col].fillna("Noma'lum").astype(str).str.strip()
+
+                        df["deklaratsiya"] = df["deklaratsiya"].fillna("").astype(str).str.strip() if "deklaratsiya" in df.columns else ""
+                        df["polis turi"] = df["polis_type"].fillna("").astype(str).str.strip() if "polis_type" in df.columns else ""
+
+                        df["100%"] = df[sum_col]
+                        df["80%"] = df["100%"] * 0.80
+                        df["20%"] = df["100%"] * 0.20
+
+                        if davr == "Kunlik":
+                            cols_final = ["sug'urta firma", "deklaratsiya", "polis turi", "100%", "80%", "20%"]
+                            st.session_state.report_title = "OSAGO kunlik hisoboti"
+                        else:
+                            date_col = "begin_date" if "begin_date" in df.columns else ("request_vaqti" if "request_vaqti" in df.columns else "")
+                            df["polis olingan vaqti"] = df[date_col].fillna("").astype(str).str.strip() if date_col else ""
+                            df["polis muddati"] = df["polis_type"].fillna("").astype(str).str.strip() if "polis_type" in df.columns else ""
+
+                            seria = df["policy_seria"].fillna("").astype(str).str.strip() if "policy_seria" in df.columns else ""
+                            number = df["policy_number"].fillna("").astype(str).str.strip() if "policy_number" in df.columns else ""
+                            df["polis raqami"] = (seria + " " + number).str.strip()
+
+                            lname = df["lastname"].fillna("").astype(str).str.strip() if "lastname" in df.columns else ""
+                            fname = df["firstname"].fillna("").astype(str).str.strip() if "firstname" in df.columns else ""
+                            df["familya ism"] = (lname + " " + fname).str.strip()
+
+                            cols_final = [
+                                "sug'urta firma", "deklaratsiya", "polis olingan vaqti", 
+                                "polis muddati", "polis raqami", "familya ism", 
+                                "100%", "80%", "20%"
+                            ]
+                            st.session_state.report_title = "OSAGO oylik hisoboti"
+
+                    res_df = df[cols_final].copy()
+
+                    # Jami qatori
+                    total_row = {c: "" for c in cols_final}
+                    total_row["sug'urta firma"] = "JAMI"
+                    total_row["100%"] = res_df["100%"].sum()
+
+                    if "75%" in cols_final:
+                        total_row["75%"] = res_df["75%"].sum()
+                        total_row["25%"] = res_df["25%"].sum()
+                    if "80%" in cols_final:
+                        total_row["80%"] = res_df["80%"].sum()
+                        total_row["20%"] = res_df["20%"].sum()
+
+                    res_df = pd.concat([res_df, pd.DataFrame([total_row])], ignore_index=True)
+                    st.session_state.result_df = res_df
+
+            if st.session_state.result_df is not None:
+                st.markdown("---")
+                out_df = st.session_state.result_df
+                jami_100 = out_df.loc[out_df["sug'urta firma"] == "JAMI", "100%"].values[0]
+                polices_count = len(out_df) - 1
+
+                st.markdown(f"### 📋 {st.session_state.report_title}")
+                
+                m_col1, m_col2 = st.columns(2)
+                with m_col1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="title">Jami rasmiylashtirilgan polislar</div>
+                        <div class="value">{polices_count:,} ta</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with m_col2:
+                    st.markdown(f"""
+                    <div class="metric-card" style="border-top-color: #10b981;">
+                        <div class="title">Umumiy summa (100%)</div>
+                        <div class="value">{jami_100:,.2f} so'm</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.dataframe(out_df, use_container_width=True)
+
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    out_df.to_excel(writer, index=False, sheet_name="Hisobot")
+                excel_bytes = output.getvalue()
+
+                st.download_button(
+                    label="📥 Tayyor hisobotni Excel (.xlsx) formatda yuklab olish",
+                    data=excel_bytes,
+                    file_name=f"{st.session_state.report_title.replace(' ', '_').lower()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        except Exception as e:
+            st.error(f"Xatolik yuz berdi: {e}")
+
+# =========================================================================
+# 2-BO'LIM: RANGLI YIG'MA SHABLON HISOBOT
 # =========================================================================
 with tab2:
     st.markdown("""
@@ -40,7 +361,7 @@ with tab2:
                 try:
                     df_in = pd.read_excel(daily_file)
 
-                    # 1. Birlamchi fayl ustunlarini aniqlash
+                    # Ustunlarni aniqlash
                     cols_lower = {str(c).lower().strip(): c for c in df_in.columns}
                     f_col = None
                     for cand in ["sug'urta firma", "sugurta_firma", "insurance_company", "firma"]:
@@ -61,14 +382,13 @@ with tab2:
                     pct_org = 0.75 if is_kuzatuv else 0.80
                     pct_mbl = 0.25 if is_kuzatuv else 0.20
 
-                    # JAMI qatorini hisobdan chiqarish
+                    # JAMI qatorini chiqarib tashlash
                     df_in = df_in[~df_in[f_col].astype(str).str.upper().str.contains("JAMI|ИТОГ|TOTAL")].copy()
                     df_in[s_col] = pd.to_numeric(
                         df_in[s_col].astype(str).str.replace(" ", "").str.replace(",", "."),
                         errors="coerce"
                     ).fillna(0)
 
-                    # Firma nomlarini tozalash va solishtirish funksiyasi
                     def clean_firm(val):
                         v = str(val).upper()
                         v = re.sub(r'["“”`\'\s]', '', v)
@@ -78,16 +398,14 @@ with tab2:
 
                     df_in["clean_firm"] = df_in[f_col].apply(clean_firm)
 
-                    # Firmalar bo'yicha yig'ish
                     grouped = df_in.groupby("clean_firm").agg(
                         cnt=(s_col, "count"),
                         sum_val=(s_col, "sum")
                     ).to_dict(orient="index")
 
-                    # Jami kunlik summa (mln so'mda)
                     total_daily_sum_mln = sum(data["sum_val"] for data in grouped.values()) / 1_000_000.0
 
-                    # 2. Rangli shablonni ochish
+                    # Shablonni yuklash
                     wb = openpyxl.load_workbook(template_file)
                     ws = wb.active
 
@@ -102,9 +420,6 @@ with tab2:
                         except:
                             return 0.0
 
-                    # Ustunlar koordinatalari:
-                    # F: Tadbir polislar, G: Tadbir mukofot, H: Tadbir 75%, I: Tadbir 25%
-                    # J: Kunlik polislar, K: Kunlik mukofot, L: Kunlik 75%, M: Kunlik 25%, N: foiz ulushi
                     COL_T_CNT = 6
                     COL_T_PREM = 7
                     COL_T_ORG = 8
@@ -116,14 +431,13 @@ with tab2:
                     COL_K_MBL = 13
                     COL_K_PCT = 14
 
-                    # Asosiy firmalar qatorlari (10-qatordan 22-qatorgacha)
                     total_k_cnt = 0
                     total_k_prem = 0.0
                     total_k_org = 0.0
                     total_k_mbl = 0.0
 
                     for r in range(10, 23):
-                        firm_name_raw = ws.cell(r, 3).value  # C ustuni
+                        firm_name_raw = ws.cell(r, 3).value
                         if not firm_name_raw:
                             continue
 
@@ -145,19 +459,16 @@ with tab2:
                         total_k_org += d_org
                         total_k_mbl += d_mbl
 
-                        # Kunlik ustunlarini to'ldirish
                         ws.cell(r, COL_K_CNT, value=d_cnt if d_cnt > 0 else "-")
                         ws.cell(r, COL_K_PREM, value=round(d_prem, 4) if d_prem > 0 else "-")
                         ws.cell(r, COL_K_ORG, value=round(d_org, 4) if d_org > 0 else "-")
                         ws.cell(r, COL_K_MBL, value=round(d_mbl, 4) if d_mbl > 0 else "-")
 
-                        # Foiz ulushi (N ustuni)
                         if total_daily_sum_mln > 0 and d_prem > 0:
                             ws.cell(r, COL_K_PCT, value=f"=K{r}*100/K$9")
                         else:
                             ws.cell(r, COL_K_PCT, value="-" if d_prem == 0 else 0)
 
-                        # Tadbir boshidan ustunlariga qo'shish (kümülyativ)
                         if d_cnt > 0:
                             cur_t_cnt = to_float(ws.cell(r, COL_T_CNT).value)
                             cur_t_prem = to_float(ws.cell(r, COL_T_PREM).value)
@@ -169,7 +480,7 @@ with tab2:
                             ws.cell(r, COL_T_ORG, value=round(cur_t_org + d_org, 4))
                             ws.cell(r, COL_T_MBL, value=round(cur_t_mbl + d_mbl, 4))
 
-                    # 3. JAMI qatorini (9-qator) formulalar bilan tiklash
+                    # JAMI formulalari
                     ws.cell(9, COL_T_CNT, value="=SUM(F10:F22)")
                     ws.cell(9, COL_T_PREM, value="=SUM(G10:G22)")
                     ws.cell(9, COL_T_ORG, value="=SUM(H10:H22)")
@@ -179,9 +490,9 @@ with tab2:
                     ws.cell(9, COL_K_PREM, value="=+K10+K11+K12+K13+K14+K15+K16+K17+K18")
                     ws.cell(9, COL_K_ORG, value="=+L10+L11+L12+L13+L14+L15+L16+L17+L18")
                     ws.cell(9, COL_K_MBL, value="=+M10+M11+M12+M13+M14+M15+M16+M17+M18")
-                    ws.cell(9, COL_K_PCT, value=1)  # 100%
+                    ws.cell(9, COL_K_PCT, value=1)
 
-                    # 4. Pastdagi Oktabr oyi qatoriga (39-qator) kunlik ko'rsatkichlarni qo'shish
+                    # 39-qator Oktabr oyi
                     if ws.cell(39, 2).value and "Oktabr" in str(ws.cell(39, 2).value):
                         c_cnt_39 = to_float(ws.cell(39, 4).value)
                         c_prem_39 = to_float(ws.cell(39, 6).value)
@@ -211,3 +522,13 @@ with tab2:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
+
+# =========================================================================
+# 3-BO'LIM: TANISHINGIZNING BO'LIMI (O'ZGARISHSIZ)
+# =========================================================================
+with tab3:
+    try:
+        from web_ui import run as run_tanishingiz
+        run_tanishingiz()
+    except Exception as e:
+        st.warning(f"Tushum tizimini yuklashda xatolik: {e}")
