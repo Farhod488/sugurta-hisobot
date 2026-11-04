@@ -1,14 +1,12 @@
-"""Streamlit UI: Tushum DOCX reports + Excel сводка (fixed)."""
+"""Streamlit UI: Tushum DOCX reports."""
 
 from __future__ import annotations
 
-import io
 import logging
 import re
 import tempfile
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 
 from app.tushum import Inspector, TushumInputs, generate_tushum_report
@@ -23,15 +21,10 @@ TEMPLATES_DIR = ROOT / "templates"
 DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
-XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 DEFAULT_PERIOD = "24-31-avgust"
 UNSAFE_PERIOD_RE = re.compile(r'[\\/:*?"<>|]|\.\.')
-TOTAL_ROW_RE = re.compile(r"^\s*(общий\s+итог|итого|итог|jami|umumiy|total|grand\s+total)\b", re.I)
 
 
-# --------------------------------------------------------------------------
-# Yordamchi funksiyalar
-# --------------------------------------------------------------------------
 def _file_key(uploaded) -> str:
     """Yuklangan fayl uchun barqaror kalit (yangi fayl -> yangi kalit)."""
     return f"{uploaded.name}_{uploaded.size}"
@@ -59,47 +52,6 @@ def _get_company_names_cached(file_bytes: bytes, filename: str, kind: str) -> li
             tmp_path.unlink()
 
 
-@st.cache_data(show_spinner=False, max_entries=10)
-def _read_excel_cached(file_bytes: bytes, filename: str, header_row: int) -> pd.DataFrame:
-    return pd.read_excel(io.BytesIO(file_bytes), header=header_row)
-
-
-def _guess_column(
-    columns: list,
-    pattern: str,
-    fallback_index: int,
-    exclude: set | None = None,
-):
-    """Nomi bo'yicha ustunni topadi; topilmasa fallback_index bo'yicha oladi.
-    `exclude` dagi ustunlar qaytarilmaydi (3 ta tanlov bir-biriga to'g'ri kelmasin)."""
-    exclude = exclude or set()
-    rx = re.compile(pattern, re.I)
-    for c in columns:
-        if c not in exclude and rx.search(str(c)):
-            return c
-    for c in columns[fallback_index:] + columns[:fallback_index]:
-        if c not in exclude:
-            return c
-    return columns[0]
-
-
-def _clean_amount(series: pd.Series) -> pd.Series:
-    """Summani songa aylantiradi. Allaqachon raqamli bo'lsa tegmaydi."""
-    if pd.api.types.is_numeric_dtype(series):
-        return series.astype(float)
-    s = (
-        series.astype(str)
-        .str.replace(r"[\s\u00a0\u202f]", "", regex=True)
-        .str.replace(",", ".", regex=False)
-    )
-    # "1.234.567.89" -> faqat oxirgi nuqta o'nlik ajratgich bo'lib qoladi
-    s = s.str.replace(r"\.(?=.*\.)", "", regex=True)
-    return pd.to_numeric(s, errors="coerce")
-
-
-# --------------------------------------------------------------------------
-# Tushum tabi
-# --------------------------------------------------------------------------
 def _generate_tushum(
     inspectors: list[Inspector],
     period: str,
@@ -206,7 +158,6 @@ def render_tushum_tab() -> None:
                         "KUZATUV",
                         kuz_names,
                         default=defaults,
-                        # yangi fayl yuklansa eski tanlov qolib ketmasin
                         key=f"kuz_{item.value}_{_file_key(kuz_xlsx)}",
                     )
                 else:
@@ -232,7 +183,6 @@ def render_tushum_tab() -> None:
     )
 
     if do_one or do_all:
-        # Eski natijani tozalaymiz (tekshiruv xato bersa eskisi ko'rinib qolmasin)
         st.session_state.pop("tushum_results", None)
 
         inspectors = list(Inspector) if do_all else [selected_inspector]
@@ -273,203 +223,11 @@ def render_tushum_tab() -> None:
             if results:
                 st.session_state["tushum_results"] = results
 
-    # Tugmadan mustaqil: download bosilganda ham natija yo'qolmaydi
     _show_tushum_results()
 
 
-# --------------------------------------------------------------------------
-# Excel-сводка tabi
-# --------------------------------------------------------------------------
-def _build_report(
-    df: pd.DataFrame, col_firma: str, col_polis: str, col_summa: str
-) -> tuple[pd.DataFrame, list[str]]:
-    """Hisobotni quradi. (natija, ogohlantirishlar) qaytaradi."""
-    warnings: list[str] = []
-    df = df.copy()
-
-    # Summa
-    original = df[col_summa]
-    amounts = _clean_amount(original)
-    bad = amounts.isna() & original.notna()
-    if bad.any():
-        warnings.append(f"{int(bad.sum())} ta qatordagi summani o'qib bo'lmadi (0 deb olindi).")
-    df[col_summa] = amounts.fillna(0)
-
-    # Firma
-    df[col_firma] = df[col_firma].fillna("Noma'lum").astype(str).str.strip()
-
-    # Manba faylda tayyor "Итого" qatori bo'lsa, ikki marta sanalmasin
-    is_total = df[col_firma].str.match(TOTAL_ROW_RE)
-    if is_total.any():
-        warnings.append(
-            f"Manba faylda {int(is_total.sum())} ta 'Итого' qatori topildi va hisobdan chiqarildi."
-        )
-        df = df[~is_total]
-
-    empty_polis = int(df[col_polis].isna().sum())
-    if empty_polis:
-        warnings.append(
-            f"Polis ustunida {empty_polis} ta bo'sh qiymat bor (ular 'Количество' ga kirmaydi)."
-        )
-
-    hisobot = (
-        df.groupby(col_firma)
-        .agg(polis_soni=(col_polis, "count"), res_ins_prem=(col_summa, "sum"))
-        .reset_index()
-    )
-    hisobot["summa_75"] = (hisobot["res_ins_prem"] * 0.75).round(2)
-    hisobot["summa_25"] = (hisobot["res_ins_prem"] - hisobot["summa_75"]).round(2)
-    hisobot["res_ins_prem"] = hisobot["res_ins_prem"].round(2)
-    hisobot["mln_100"] = (hisobot["res_ins_prem"] / 1_000_000).round(3)
-    hisobot["mln_75"] = (hisobot["summa_75"] / 1_000_000).round(3)
-    hisobot["mln_25"] = (hisobot["summa_25"] / 1_000_000).round(3)
-
-    numeric_cols = [
-        "polis_soni",
-        "res_ins_prem",
-        "summa_75",
-        "summa_25",
-        "mln_100",
-        "mln_75",
-        "mln_25",
-    ]
-    jami = {col_firma: "Общий итог"}
-    jami.update({c: hisobot[c].sum() for c in numeric_cols})
-    yakuniy = pd.concat([hisobot, pd.DataFrame([jami])], ignore_index=True)
-    yakuniy = yakuniy.rename(
-        columns={
-            col_firma: "Названия строк",
-            "polis_soni": "Количество по полю polis",
-            "res_ins_prem": "Сумма по полю res_ins_prem",
-            "summa_75": "Сумма по полю 75%",
-            "summa_25": "Сумма по полю 25%",
-            "mln_100": "100% (млн)",
-            "mln_75": "75% (млн)",
-            "mln_25": "25% (млн)",
-        }
-    )
-    return yakuniy, warnings
-
-
-def _show_excel_results() -> None:
-    res = st.session_state.get("excel_result")
-    if not res:
-        return
-    for w in res["warnings"]:
-        st.warning(w)
-    st.subheader("Natija")
-    st.dataframe(res["df"], use_container_width=True)
-    st.download_button(
-        label="Tayyor hisobotni yuklab olish (.xlsx)",
-        data=res["xlsx"],
-        file_name="sugurta_hisobot.xlsx",
-        mime=XLSX_MIME,
-        key="dl_excel_report",
-    )
-
-
-def render_excel_tab() -> None:
-    st.subheader("Excel-сводка (75% / 25%)")
-    st.write("Birlamchi Excel faylni yuklang va natijaviy hisobotni oling.")
-
-    uploaded_file = st.file_uploader(
-        "Excel faylni tanlang (.xlsx yoki .xls)", type=["xlsx", "xls"], key="excel_sum"
-    )
-    if uploaded_file is None:
-        st.session_state.pop("excel_result", None)
-        return
-
-    header_row = int(
-        st.number_input(
-            "Sarlavha qatori raqami (0 = birinchi qator)",
-            min_value=0,
-            max_value=50,
-            value=0,
-            step=1,
-        )
-    )
-
-    try:
-        df = _read_excel_cached(uploaded_file.getvalue(), uploaded_file.name, header_row)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Excel read failed")
-        st.error(f"Faylni o'qib bo'lmadi: {exc}")
-        return
-
-    st.success("Fayl muvaffaqiyatli yuklandi!")
-    with st.expander("Yuklangan faylning dastlabki 5 ta qatori"):
-        st.dataframe(df.head())
-
-    columns = list(df.columns)
-    if len(columns) < 3:
-        st.error("Faylda kamida 3 ta ustun bo'lishi kerak.")
-        return
-    if len(set(columns)) != len(columns):
-        st.error("Ustun nomlari takrorlanmoqda. Sarlavha qatorini to'g'rilang.")
-        return
-
-    default_firma = _guess_column(
-        columns, r"firma|company|наименование|страховщик", 0
-    )
-    default_polis = _guess_column(
-        columns, r"polis|полис|deklar|декларация|\bnd\b|номер", 1, {default_firma}
-    )
-    default_summa = _guess_column(
-        columns,
-        r"res_ins_prem|prem|summa|сумма",
-        2,
-        {default_firma, default_polis},
-    )
-
-    st.subheader("Ustunlarni moslashtirish")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        col_firma = st.selectbox(
-            "Firma nomi ustuni:", columns, index=columns.index(default_firma)
-        )
-    with col2:
-        col_polis = st.selectbox(
-            "Polis / Deklaratsiya ustuni:", columns, index=columns.index(default_polis)
-        )
-    with col3:
-        col_summa = st.selectbox(
-            "Umumiy summa (res_ins_prem) ustuni:",
-            columns,
-            index=columns.index(default_summa),
-        )
-
-    if st.button("Hisobotni shakllantirish", type="primary"):
-        st.session_state.pop("excel_result", None)
-        if len({col_firma, col_polis, col_summa}) < 3:
-            st.warning("Firma, polis va summa uchun turli ustunlarni tanlang.")
-        else:
-            try:
-                yakuniy_df, warns = _build_report(df, col_firma, col_polis, col_summa)
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                    yakuniy_df.to_excel(writer, index=False, sheet_name="Hisobot")
-                st.session_state["excel_result"] = {
-                    "df": yakuniy_df,
-                    "xlsx": output.getvalue(),
-                    "warnings": warns,
-                }
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Excel report failed")
-                st.error(f"Xatolik yuz berdi: {exc}")
-
-    _show_excel_results()
-
-
-# --------------------------------------------------------------------------
 def run() -> None:
-    st.set_page_config(page_title="Sug'urta hisoboti", layout="wide")
-    st.title("Sug'urta hisobotini shakllantirish dasturi")
-
-    tab_tushum, tab_excel = st.tabs(["Тушум (DOCX)", "Excel-сводка"])
-    with tab_tushum:
-        render_tushum_tab()
-    with tab_excel:
-        render_excel_tab()
+    render_tushum_tab()
 
 
 if __name__ == "__main__":
