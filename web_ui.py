@@ -1,11 +1,12 @@
-"""Streamlit UI: Tushum DOCX reports."""
+"""Streamlit UI: Tushum DOCX reports (Kalendar bilan)."""
 
 from __future__ import annotations
 
 import logging
-import re
 import tempfile
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -21,8 +22,28 @@ TEMPLATES_DIR = ROOT / "templates"
 DOCX_MIME = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
-DEFAULT_PERIOD = "24-31-avgust"
-UNSAFE_PERIOD_RE = re.compile(r'[\\/:*?"<>|]|\.\.')
+
+UZ_MONTHS = {
+    1: "yanvar", 2: "fevral", 3: "mart", 4: "aprel",
+    5: "may", 6: "iyun", 7: "iyul", 8: "avgust",
+    9: "sentabr", 10: "oktabr", 11: "noyabr", 12: "dekabr",
+}
+
+
+def _today_tashkent() -> date:
+    return datetime.now(ZoneInfo("Asia/Tashkent")).date()
+
+
+def _format_period(d_start: date, d_end: date) -> str:
+    d_start, d_end = sorted([d_start, d_end])
+    if d_start == d_end:
+        return f"{d_start.day}-{UZ_MONTHS[d_start.month]}"
+    if d_start.month == d_end.month:
+        return f"{d_start.day}-{d_end.day}-{UZ_MONTHS[d_end.month]}"
+    return (
+        f"{d_start.day}-{UZ_MONTHS[d_start.month]}-"
+        f"{d_end.day}-{UZ_MONTHS[d_end.month]}"
+    )
 
 
 def _file_key(uploaded) -> str:
@@ -70,7 +91,7 @@ def _generate_tushum(
                     kuzatuv_xlsx=_save_upload(files["kuz_xlsx"], folder, "KUZATUV.xlsx"),
                     osago_pdf=_save_upload(files["osa_pdf"], folder, "OSAGO.pdf"),
                     osago_xlsx=_save_upload(files["osa_xlsx"], folder, "OSAGO.xlsx"),
-                    period_text=period.strip() or DEFAULT_PERIOD,
+                    period_text=period,
                     templates_dir=TEMPLATES_DIR,
                     output_dir=out_dir,
                     kuzatuv_assignments=kuz_assign if files["kuz_xlsx"] else None,
@@ -87,11 +108,18 @@ def _generate_tushum(
             return None
 
 
-def _show_tushum_results() -> None:
-    results = st.session_state.get("tushum_results")
-    if not results:
+def _show_tushum_results(current_period: str | None) -> None:
+    saved = st.session_state.get("tushum_results")
+    if not saved:
         return
-    st.success(f"Готово: {len(results)} файл(ов)")
+    if saved["period"] != current_period:
+        st.info(
+            f"Ранее сформированные файлы относятся к периоду «{saved['period']}». "
+            "Нажмите «Сформировать отчёт» ещё раз для нового периода."
+        )
+        return
+    results = saved["files"]
+    st.success(f"Готово: {len(results)} файл(ов) — период: {saved['period']}")
     for name, data in results:
         st.download_button(
             label=f"Скачать {name}",
@@ -109,7 +137,29 @@ def render_tushum_tab() -> None:
         "Без файла соответствующий абзац останется из шаблона."
     )
 
-    period = st.text_input("Период", value=DEFAULT_PERIOD, help="Например: 24-31-avgust")
+    # MINI KALENDAR
+    today = _today_tashkent()
+    selected_dates = st.date_input(
+        "Davrni tanlang (boshlanish va tugash sanasi):",
+        value=(today, today),
+        format="DD.MM.YYYY",
+        help="Kalendardan oraliqni tanlang (masalan, 24-avgustdan 31-avgustgacha)",
+    )
+
+    period: str | None = None
+    if isinstance(selected_dates, (list, tuple)):
+        if len(selected_dates) == 2:
+            period = _format_period(*selected_dates)
+    else:
+        period = _format_period(selected_dates, selected_dates)
+
+    if period:
+        st.caption(f"Tanlangan davr matni: **{period}**")
+    else:
+        st.caption(
+            "⚠️ Davrning tugash sanasini ham tanlang "
+            "(bir kun bo'lsa, shu sanani ikki marta bosing)."
+        )
 
     c1, c2 = st.columns(2)
     with c1:
@@ -188,10 +238,10 @@ def render_tushum_tab() -> None:
         inspectors = list(Inspector) if do_all else [selected_inspector]
         error: str | None = None
 
-        if not any([kuz_pdf, kuz_xlsx, osa_pdf, osa_xlsx]):
+        if period is None:
+            error = "Выберите период полностью (даты начала и конца)."
+        elif not any([kuz_pdf, kuz_xlsx, osa_pdf, osa_xlsx]):
             error = "Загрузите хотя бы один файл."
-        elif UNSAFE_PERIOD_RE.search(period):
-            error = 'Период содержит недопустимые символы (\\ / : * ? " < > | ..).'
         elif not TEMPLATES_DIR.exists():
             error = f"Не найдена папка шаблонов: {TEMPLATES_DIR}"
         else:
@@ -221,9 +271,12 @@ def render_tushum_tab() -> None:
                 osa_assign,
             )
             if results:
-                st.session_state["tushum_results"] = results
+                st.session_state["tushum_results"] = {
+                    "period": period,
+                    "files": results,
+                }
 
-    _show_tushum_results()
+    _show_tushum_results(period)
 
 
 def run() -> None:
